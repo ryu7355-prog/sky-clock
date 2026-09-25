@@ -112,6 +112,10 @@ svg.dial{width:min(82vw,48vh,420px);height:auto;display:block}
 .sound.sel .radio{border-color:var(--focus)}
 .sound.sel .radio::after{content:"";width:10px;height:10px;border-radius:50%;background:var(--focus)}
 .play{width:44px;height:44px;border-radius:50%;border:0;background:var(--key);color:var(--key-ink);display:grid;place-items:center;cursor:pointer}
+.switch{width:50px;height:30px;border-radius:15px;border:0;background:var(--key);position:relative;cursor:pointer;flex:none;transition:background .2s}
+.switch .knob{position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.3);transition:transform .2s}
+.switch[aria-checked="true"]{background:var(--focus)}
+.switch[aria-checked="true"] .knob{transform:translateX(20px)}
 .confirm{margin-top:28px;height:58px;border-radius:29px;border:0;background:var(--ink);color:var(--sheet);font-size:17px;font-weight:500;cursor:pointer;flex:none}
 .tabs{display:flex;background:var(--key);border-radius:22px;padding:4px;margin:6px 0 22px}
 .tabs button{flex:1;height:36px;border:0;border-radius:18px;background:transparent;color:var(--muted);font-size:15px;cursor:pointer}
@@ -121,6 +125,7 @@ svg.dial{width:min(82vw,48vh,420px);height:auto;display:block}
 .chart{margin-top:26px;width:100%;overflow-x:auto}
 .chart svg{display:block;width:100%;height:auto;min-width:300px}
 .chart-note{font-size:12px;color:var(--muted);margin-top:8px}
+:root.sky-fixed{--sky:#7CC4F2;--sky-ink:#0F3F63;--sky-soft:rgba(15,63,99,.55);--clock-face:#FBFDFE}
 @media (prefers-reduced-motion:reduce){.sheet,.key,.nav button::after,body{transition:none}}
 </style>
 </head>
@@ -223,6 +228,17 @@ svg.dial{width:min(82vw,48vh,420px);height:auto;display:block}
         </div>
       </div>
     </div>
+    <div class="group-title">하늘 시계 색</div>
+    <div class="rows">
+      <div class="row">
+        <div class="label">폰 화면 모드에 맞추기</div>
+        <button class="switch" id="skyAutoToggle" role="switch" aria-checked="true" aria-label="폰 화면 모드에 맞추기">
+          <span class="knob"></span>
+        </button>
+      </div>
+    </div>
+    <p class="lead" style="margin:6px 0 0;">켜면 폰이 어두운 모드일 때 하늘도 밤색으로 바뀌어요. 끄면 언제나 맑은 하늘색으로 고정돼요.</p>
+
     <div class="group-title">알림 소리</div>
     <div class="rows" id="soundRows"></div>
     <button class="confirm" id="confirm">이대로 할게요</button>
@@ -261,7 +277,8 @@ svg.dial{width:min(82vw,48vh,420px);height:auto;display:block}
   const LIMITS = { focus:[10,60], rest:[5,20] };
   let S = store.get('pomo-settings-v2', null);
   const firstRun = !S;
-  if (!S) { const old = store.get('pomo-settings-v1', null); S = { focus: old?.focus || 25, rest: old?.rest || 5, sound: 'bell' }; }
+  if (!S) { const old = store.get('pomo-settings-v1', null); S = { focus: old?.focus || 25, rest: old?.rest || 5, sound: 'bell', skyAuto: true }; }
+  if (S.skyAuto === undefined) S.skyAuto = true;
   let draft = { ...S };
 
   /* ---------- log ---------- */
@@ -419,6 +436,7 @@ svg.dial{width:min(82vw,48vh,420px);height:auto;display:block}
   /* ---------- settings sheet ---------- */
   function renderDraft(){
     $('vFocus').textContent = draft.focus; $('vRest').textContent = draft.rest;
+    $('skyAutoToggle').setAttribute('aria-checked', String(draft.skyAuto));
     document.querySelectorAll('.step').forEach(b => {
       const k = b.dataset.k, d = +b.dataset.d, [lo, hi] = LIMITS[k];
       b.disabled = d < 0 ? draft[k] <= lo : draft[k] >= hi;
@@ -440,11 +458,13 @@ svg.dial{width:min(82vw,48vh,420px);height:auto;display:block}
     draft[k] = Math.min(hi, Math.max(lo, draft[k] + (+b.dataset.d))); renderDraft();
   }));
   function openSettings(){ if (running) pause(); draft = { ...S }; renderDraft(); $('settings').classList.add('open'); }
+  $('skyAutoToggle').addEventListener('click', () => { draft.skyAuto = !draft.skyAuto; renderDraft(); });
   $('openSettings').addEventListener('click', openSettings);
   $('confirm').addEventListener('click', () => {
     const timeChanged = draft.focus !== S.focus || draft.rest !== S.rest;
     S = { ...draft }; store.set('pomo-settings-v2', S);
     if (timeChanged) { phase = 'focus'; remain = total(); $('hint').textContent = ''; }
+    applySky();
     $('settings').classList.remove('open'); renderStatic();
   });
 
@@ -501,6 +521,7 @@ svg.dial{width:min(82vw,48vh,420px);height:auto;display:block}
 
   /* ---------- pager ---------- */
   const pager = $('pager'), navBtns = document.querySelectorAll('.nav button');
+  function applySky(){ document.documentElement.classList.toggle('sky-fixed', !S.skyAuto); }
   function setPage(i){
     navBtns.forEach((b, j) => b.classList.toggle('on', j === i));
     document.documentElement.classList.toggle('on-pomo', i === 1);
@@ -527,6 +548,7 @@ svg.dial{width:min(82vw,48vh,420px);height:auto;display:block}
     });
   });
 
+  applySky();
   setPage(0); tickClock(); renderStatic();
   if (firstRun) openSettings();
 })();
