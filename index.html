@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" id="themeColor" content="#7CC4F2">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<title>하늘 시계</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&family=Noto+Sans+KR:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --sky:#7CC4F2; --sky-ink:#0F3F63; --sky-soft:rgba(15,63,99,.55);
+  --clock-face:#FBFDFE; --clock-tick:#23262A; --clock-dim:#A9B4BD; --hand:#1E2226;
+  --bg:#E6E6E2; --face:#1E1E1D; --tick:#F2F2EE; --tick-dim:#7C7C78;
+  --ink:#1E1E1D; --muted:#77776F; --key:#D5D5D0; --key-ink:#1E1E1D; --sheet:#EFEFEC;
+  --focus:#F0641E; --rest:#6F9A56; --line:rgba(0,0,0,.09); --bar-dim:#D9D9D3;
+  --font:'Archivo','Noto Sans KR',-apple-system,'Segoe UI',Roboto,sans-serif;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --sky:#16344F; --sky-ink:#D6E8F5; --sky-soft:rgba(214,232,245,.6);
+    --clock-face:#EEF3F7;
+    --bg:#1A1A19; --face:#0F0F0F; --tick-dim:#5E5E5A;
+    --ink:#ECECE8; --muted:#8E8E87; --key:#34342F; --key-ink:#ECECE8; --sheet:#262624; --line:rgba(255,255,255,.08); --bar-dim:#3A3A36;
+  }
+}
+:root[data-theme="dark"]{
+  --sky:#16344F; --sky-ink:#D6E8F5; --sky-soft:rgba(214,232,245,.6);
+  --clock-face:#EEF3F7;
+  --bg:#1A1A19; --face:#0F0F0F; --tick-dim:#5E5E5A;
+  --ink:#ECECE8; --muted:#8E8E87; --key:#34342F; --key-ink:#ECECE8; --sheet:#262624; --line:rgba(255,255,255,.08); --bar-dim:#3A3A36;
+}
+*,*::before,*::after{box-sizing:inherit}
+html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px);background:var(--sky)}
+body{margin:0;height:100%;overflow:hidden;background:var(--sky);color:var(--ink);font-family:var(--font);-webkit-tap-highlight-color:transparent;user-select:none;transition:background .3s}
+body.on-pomo, html.on-pomo{background:var(--bg)}
+button{font-family:var(--font)}
+button:focus-visible{outline:2px solid var(--focus);outline-offset:3px}
+
+/* pager */
+.pager{height:100%;display:flex;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;scrollbar-width:none;overscroll-behavior-x:contain}
+.pager::-webkit-scrollbar{display:none}
+.page{flex:0 0 100%;height:100%;scroll-snap-align:start;scroll-snap-stop:always;position:relative;display:flex;flex-direction:column;align-items:center;padding:14px 20px 44px}
+.clock-page{background:var(--sky);color:var(--sky-ink)}
+.pomo-page{background:var(--bg)}
+.bar{width:100%;max-width:460px;display:flex;align-items:center;justify-content:space-between;min-height:44px}
+.bar .grp{display:flex;gap:2px}
+.icon-btn{width:44px;height:44px;border-radius:50%;border:0;background:transparent;color:inherit;display:grid;place-items:center;cursor:pointer;opacity:.75}
+.icon-btn[hidden]{display:none}
+.stage{flex:1;width:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:0}
+
+/* clock */
+svg.clock{width:min(88vw,62vh,460px);height:auto;display:block}
+.date{margin-top:26px;font-size:18px;font-weight:500;letter-spacing:.01em}
+.clock-state{margin-top:10px;font-size:14px;color:var(--sky-soft);min-height:20px;display:flex;align-items:center;gap:8px}
+.clock-state i{width:8px;height:8px;border-radius:50%;background:var(--focus)}
+.clock-state.rest i{background:var(--rest)}
+
+/* pomodoro */
+.summary{font-size:14px;color:var(--muted)}
+.summary b{color:var(--ink);font-weight:500}
+.pomo-page .icon-btn{color:var(--muted)}
+svg.dial{width:min(82vw,48vh,420px);height:auto;display:block}
+.readout{text-align:center;margin-top:14px}
+.time{font-size:clamp(40px,8vh,56px);font-weight:500;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1}
+.phase{margin-top:8px;font-size:15px;color:var(--muted);display:inline-flex;align-items:center;gap:8px}
+.phase i{width:10px;height:10px;border-radius:50%;background:var(--focus)}
+.phase.rest i{background:var(--rest)}
+.keys{display:flex;justify-content:center;align-items:center;gap:22px;margin-top:clamp(12px,3vh,24px)}
+.key{width:56px;height:56px;border-radius:50%;border:0;cursor:pointer;background:var(--key);color:var(--key-ink);display:grid;place-items:center;box-shadow:0 2px 0 var(--line);transition:transform .08s}
+.key:active{transform:translateY(1px) scale(.97)}
+.key.main{width:78px;height:78px;background:var(--focus);color:#fff}
+.key.main.rest{background:var(--rest)}
+.tally{display:flex;justify-content:center;flex-wrap:wrap;gap:8px;margin-top:18px;min-height:10px;max-width:260px}
+.tally span{width:10px;height:10px;border-radius:50%;background:var(--focus)}
+.hint{text-align:center;font-size:13px;color:var(--muted);margin-top:8px;min-height:18px}
+
+/* page dots */
+.nav{position:fixed;left:0;right:0;bottom:calc(env(safe-area-inset-bottom,0px) + 14px);display:flex;justify-content:center;gap:4px;pointer-events:none}
+.nav button{pointer-events:auto;width:28px;height:24px;border:0;background:transparent;display:grid;place-items:center;cursor:pointer;padding:0}
+.nav button::after{content:"";width:7px;height:7px;border-radius:50%;background:currentColor;opacity:.3;transition:opacity .2s,width .2s}
+.nav button.on::after{opacity:.85;width:18px;border-radius:4px}
+.nav{color:var(--sky-ink)}
+.on-pomo .nav{color:var(--ink)}
+
+/* sheets */
+.sheet{position:fixed;inset:0;background:var(--sheet);color:var(--ink);opacity:0;pointer-events:none;transition:opacity .2s;overflow-y:auto;padding:calc(env(safe-area-inset-top,0px) + 20px) 22px calc(env(safe-area-inset-bottom,0px) + 24px)}
+.sheet.open{opacity:1;pointer-events:auto}
+.sheet-in{max-width:440px;margin:0 auto;display:flex;flex-direction:column;min-height:100%}
+.sheet-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
+.sheet h2{font-size:22px;font-weight:500;margin:0}
+.sheet .lead{margin:6px 0 20px;color:var(--muted);font-size:14px;line-height:1.5}
+.group-title{font-size:14px;color:var(--muted);margin:22px 0 4px}
+.row{display:flex;align-items:center;justify-content:space-between;padding:14px 0;border-top:1px solid var(--line)}
+.rows>.row:last-child{border-bottom:1px solid var(--line)}
+.row .label{display:flex;align-items:center;gap:10px;font-size:16px}
+.row .label i{width:12px;height:12px;border-radius:50%;display:inline-block}
+.stepper{display:flex;align-items:center;gap:12px}
+.step{width:44px;height:44px;border-radius:50%;border:0;background:var(--key);color:var(--key-ink);font-size:22px;cursor:pointer;display:grid;place-items:center}
+.step:disabled{opacity:.35;cursor:default}
+.val{min-width:64px;text-align:center;font-size:28px;font-weight:500;font-variant-numeric:tabular-nums}
+.val small{font-size:14px;color:var(--muted);font-weight:400;margin-left:2px}
+.sound{cursor:pointer}
+.sound .radio{width:22px;height:22px;border-radius:50%;border:2px solid var(--muted);display:grid;place-items:center;flex:none}
+.sound.sel .radio{border-color:var(--focus)}
+.sound.sel .radio::after{content:"";width:10px;height:10px;border-radius:50%;background:var(--focus)}
+.play{width:44px;height:44px;border-radius:50%;border:0;background:var(--key);color:var(--key-ink);display:grid;place-items:center;cursor:pointer}
+.confirm{margin-top:28px;height:58px;border-radius:29px;border:0;background:var(--ink);color:var(--sheet);font-size:17px;font-weight:500;cursor:pointer;flex:none}
+.tabs{display:flex;background:var(--key);border-radius:22px;padding:4px;margin:6px 0 22px}
+.tabs button{flex:1;height:36px;border:0;border-radius:18px;background:transparent;color:var(--muted);font-size:15px;cursor:pointer}
+.tabs button.on{background:var(--sheet);color:var(--ink);font-weight:500}
+.big{font-size:40px;font-weight:500;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+.big-sub{color:var(--muted);font-size:14px;margin-top:4px}
+.chart{margin-top:26px;width:100%;overflow-x:auto}
+.chart svg{display:block;width:100%;height:auto;min-width:300px}
+.chart-note{font-size:12px;color:var(--muted);margin-top:8px}
+@media (prefers-reduced-motion:reduce){.sheet,.key,.nav button::after,body{transition:none}}
+</style>
+</head>
+<body>
+<div class="pager" id="pager">
+  <!-- CLOCK -->
+  <section class="page clock-page" aria-label="시계">
+    <div class="bar">
+      <span></span>
+      <button class="icon-btn fs-btn" aria-label="전체 화면">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+      </button>
+    </div>
+    <div class="stage">
+      <svg class="clock" viewBox="0 0 340 340" role="img" aria-label="바늘 시계">
+        <circle cx="170" cy="170" r="164" fill="var(--clock-face)"/>
+        <g id="cTicks"></g>
+        <g id="hHour"><line x1="170" y1="186" x2="170" y2="94" stroke="var(--hand)" stroke-width="10" stroke-linecap="round"/></g>
+        <g id="hMin"><line x1="170" y1="190" x2="170" y2="50" stroke="var(--hand)" stroke-width="6" stroke-linecap="round"/></g>
+        <circle cx="170" cy="170" r="9" fill="var(--hand)"/>
+        <g id="hSec"><line x1="170" y1="198" x2="170" y2="40" stroke="var(--focus)" stroke-width="2.4" stroke-linecap="round"/><circle cx="170" cy="170" r="5" fill="var(--focus)"/></g>
+      </svg>
+      <div class="date" id="date"></div>
+      <div class="clock-state" id="clockState"></div>
+    </div>
+  </section>
+
+  <!-- POMODORO -->
+  <section class="page pomo-page" aria-label="집중 타이머">
+    <div class="bar">
+      <div class="summary" id="summary"></div>
+      <div class="grp">
+        <button class="icon-btn" id="openStats" aria-label="사용 기록">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 20V11M12 20V5M19 20v-6"/></svg>
+        </button>
+        <button class="icon-btn" id="openSettings" aria-label="설정">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/></svg>
+        </button>
+        <button class="icon-btn fs-btn" aria-label="전체 화면">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="stage">
+      <svg class="dial" viewBox="0 0 340 340" role="img" aria-label="남은 시간 다이얼">
+        <circle cx="170" cy="170" r="164" fill="var(--face)"/>
+        <g id="ticks"></g>
+        <path id="wedge" fill="var(--focus)"/>
+        <line id="hand" x1="170" y1="170" x2="170" y2="54" stroke="var(--tick)" stroke-width="3" stroke-linecap="round"/>
+        <circle cx="170" cy="170" r="15" fill="#3A3A37"/>
+        <circle cx="170" cy="170" r="5" fill="var(--tick)"/>
+      </svg>
+      <div class="readout">
+        <div class="time" id="time">25:00</div>
+        <div class="phase" id="phase"><i></i><span>집중 시간</span></div>
+      </div>
+      <div class="keys">
+        <button class="key" id="reset" aria-label="처음으로">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v4.5h4.5"/></svg>
+        </button>
+        <button class="key main" id="toggle" aria-label="시작">
+          <svg id="iconPlay" width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l10.5-6.5z"/></svg>
+          <svg id="iconPause" width="28" height="28" viewBox="0 0 24 24" fill="currentColor" style="display:none"><rect x="6.5" y="5.5" width="4" height="13" rx="1"/><rect x="13.5" y="5.5" width="4" height="13" rx="1"/></svg>
+        </button>
+        <button class="key" id="skip" aria-label="다음 단계로 넘기기">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M5 6v12l8.5-6z"/><rect x="15" y="6" width="3" height="12" rx="1"/></svg>
+        </button>
+      </div>
+      <div class="tally" id="tally" aria-label="오늘 완료한 집중 횟수"></div>
+      <div class="hint" id="hint"></div>
+    </div>
+  </section>
+</div>
+
+<nav class="nav" aria-label="화면 선택">
+  <button data-p="0" aria-label="시계" class="on"></button>
+  <button data-p="1" aria-label="집중 타이머"></button>
+</nav>
+
+<!-- SETTINGS -->
+<section class="sheet" id="settings" aria-label="설정">
+  <div class="sheet-in">
+    <h2>시간과 소리 정하기</h2>
+    <p class="lead">얼마나 집중하고 얼마나 쉴지, 끝날 때 어떤 소리가 날지 골라요.</p>
+    <div class="rows">
+      <div class="row">
+        <div class="label"><i style="background:var(--focus)"></i>집중 시간</div>
+        <div class="stepper">
+          <button class="step" data-k="focus" data-d="-5" aria-label="집중 시간 줄이기">−</button>
+          <div class="val"><span id="vFocus">25</span><small>분</small></div>
+          <button class="step" data-k="focus" data-d="5" aria-label="집중 시간 늘리기">+</button>
+        </div>
+      </div>
+      <div class="row">
+        <div class="label"><i style="background:var(--rest)"></i>쉬는 시간</div>
+        <div class="stepper">
+          <button class="step" data-k="rest" data-d="-5" aria-label="쉬는 시간 줄이기">−</button>
+          <div class="val"><span id="vRest">5</span><small>분</small></div>
+          <button class="step" data-k="rest" data-d="5" aria-label="쉬는 시간 늘리기">+</button>
+        </div>
+      </div>
+    </div>
+    <div class="group-title">알림 소리</div>
+    <div class="rows" id="soundRows"></div>
+    <button class="confirm" id="confirm">이대로 할게요</button>
+  </div>
+</section>
+
+<!-- STATS -->
+<section class="sheet" id="stats" aria-label="사용 기록">
+  <div class="sheet-in">
+    <div class="sheet-head">
+      <h2>집중 기록</h2>
+      <button class="icon-btn" id="closeStats" aria-label="닫기" style="color:var(--muted)">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <div class="tabs" role="tablist">
+      <button class="on" data-tab="day" role="tab">날짜별</button>
+      <button data-tab="month" role="tab">월별</button>
+    </div>
+    <div class="big" id="statBig">0분</div>
+    <div class="big-sub" id="statSub"></div>
+    <div class="chart" id="chart"></div>
+    <div class="chart-note" id="chartNote"></div>
+  </div>
+</section>
+
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  const store = {
+    get(k, d){ try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch(e){ return d; } },
+    set(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} }
+  };
+
+  /* ---------- settings ---------- */
+  const LIMITS = { focus:[10,60], rest:[5,20] };
+  let S = store.get('pomo-settings-v2', null);
+  const firstRun = !S;
+  if (!S) { const old = store.get('pomo-settings-v1', null); S = { focus: old?.focus || 25, rest: old?.rest || 5, sound: 'bell' }; }
+  let draft = { ...S };
+
+  /* ---------- log ---------- */
+  let LOG = store.get('pomo-log-v1', {});
+  const pad = n => String(n).padStart(2,'0');
+  const dayKey = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  function addFocus(ms, completed){
+    if (ms < 1000 && !completed) return;
+    const k = dayKey(new Date()), e = LOG[k] || { ms:0, n:0 };
+    e.ms += Math.max(0, ms); if (completed) e.n++;
+    LOG[k] = e; store.set('pomo-log-v1', LOG);
+  }
+  const todayN = () => (LOG[dayKey(new Date())] || {}).n || 0;
+
+  /* ---------- audio ---------- */
+  let ctx = null, master = null;
+  function audio(){
+    try {
+      if (!ctx) { ctx = new (window.AudioContext || window.webkitAudioContext)(); master = ctx.createGain(); master.gain.value = .45; const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2400; lp.Q.value = .5; master.connect(lp).connect(ctx.destination); }
+      if (ctx.state === 'suspended') ctx.resume();
+    } catch(e){}
+    return ctx;
+  }
+  function tone(f, t, dur, parts, vol, atk = .03){
+    parts.forEach(([mult, amp]) => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'sine'; o.frequency.value = f * mult;
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(vol * amp, t + atk);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur * (1 / Math.sqrt(mult)));
+      o.connect(g).connect(master); o.start(t); o.stop(t + dur + 0.05);
+    });
+  }
+  const N = { G4:392, C5:523.25, D5:587.33, E5:659.25, G5:783.99, C6:1046.5 };
+  const SOUNDS = {
+    bell: { name:'심플한 벨', play(t){ const p = [[1,1],[2.76,.1]]; tone(880, t, 2.6, p, .22, .04); tone(880, t + 1.5, 2.8, p, .2, .04); } },
+    chime:{ name:'차임벨',   play(t){ const p = [[1,1],[2,.08]]; [N.E5,N.C5,N.D5,N.G4, N.G4,N.D5,N.E5,N.C5].forEach((f,i) => tone(f, t + i*.6 + (i>3?.4:0), 2.4, p, .2, .05)); } },
+    piano:{ name:'피아노 멜로디', play(t){ const p = [[1,1],[2,.22],[3,.05]]; [[N.C5,0],[N.E5,.32],[N.G5,.64],[N.E5,.96],[N.G5,1.28],[N.C6,1.7]].forEach(([f,d],i) => tone(f, t + d, i===5?2.6:1.3, p, .19, .018)); } }
+  };
+  function playSound(key){ if (!audio()) return; SOUNDS[key].play(ctx.currentTime + .05); }
+
+  /* ---------- clock ---------- */
+  const cx = 170, cy = 170;
+  (function buildClock(){
+    let s = '';
+    for (let m = 0; m < 60; m++) {
+      const a = m * 6 * Math.PI / 180, hour = m % 5 === 0;
+      const r1 = hour ? 140 : 147, r2 = 154;
+      s += `<line x1="${cx+r1*Math.sin(a)}" y1="${cy-r1*Math.cos(a)}" x2="${cx+r2*Math.sin(a)}" y2="${cy-r2*Math.cos(a)}" stroke="${hour?'var(--clock-tick)':'var(--clock-dim)'}" stroke-width="${hour?3.4:1.4}" stroke-linecap="round"/>`;
+    }
+    for (let h = 1; h <= 12; h++) {
+      const a = h * 30 * Math.PI / 180, r = 118;
+      s += `<text x="${cx+r*Math.sin(a)}" y="${cy-r*Math.cos(a)}" fill="var(--clock-tick)" font-family="Archivo, sans-serif" font-size="22" font-weight="500" text-anchor="middle" dominant-baseline="central">${h}</text>`;
+    }
+    $('cTicks').innerHTML = s;
+  })();
+  const DAYS = ['일','월','화','수','목','금','토'];
+  let lastSec = -1;
+  function tickClock(){
+    const d = new Date(), s = d.getSeconds();
+    if (s !== lastSec) {
+      lastSec = s;
+      const m = d.getMinutes() + s/60, h = (d.getHours() % 12) + m/60;
+      $('hHour').setAttribute('transform', `rotate(${h*30} ${cx} ${cy})`);
+      $('hMin').setAttribute('transform', `rotate(${m*6} ${cx} ${cy})`);
+      $('hSec').setAttribute('transform', `rotate(${s*6} ${cx} ${cy})`);
+      $('date').textContent = `${d.getMonth()+1}월 ${d.getDate()}일 ${DAYS[d.getDay()]}요일`;
+      const cs = $('clockState');
+      if (running) { cs.className = 'clock-state' + (phase==='rest'?' rest':''); cs.innerHTML = `<i></i>${phase==='focus'?'집중':'쉬는'} 시간 ${fmtClock(left())} 남음`; }
+      else cs.textContent = '';
+    }
+  }
+  setInterval(tickClock, 200);
+
+  /* ---------- pomodoro ---------- */
+  let phase = 'focus', running = false, endAt = 0, remain = S.focus*60000, segStart = 0;
+  let raf = 0, finishTimer = 0, wakeLock = null;
+  const R = 118;
+  (function buildDial(){
+    let s = '';
+    for (let m = 0; m < 60; m++) {
+      const a = m * 6 * Math.PI / 180, major = m % 5 === 0;
+      const r1 = major ? 124 : 128, r2 = 136;
+      s += `<line x1="${cx+r1*Math.sin(a)}" y1="${cy-r1*Math.cos(a)}" x2="${cx+r2*Math.sin(a)}" y2="${cy-r2*Math.cos(a)}" stroke="${major?'var(--tick)':'var(--tick-dim)'}" stroke-width="${major?2.4:1.2}" stroke-linecap="round"/>`;
+      if (major) s += `<text x="${cx+150*Math.sin(a)}" y="${cy-150*Math.cos(a)}" fill="var(--tick)" font-family="Archivo, sans-serif" font-size="13" font-weight="500" text-anchor="middle" dominant-baseline="central">${m}</text>`;
+    }
+    $('ticks').innerHTML = s;
+  })();
+  function wedgePath(f){
+    if (f <= 0) return '';
+    if (f >= 0.9999) return `M ${cx} ${cy-R} A ${R} ${R} 0 1 1 ${cx-0.01} ${cy-R} Z`;
+    const a = f * 2 * Math.PI;
+    return `M ${cx} ${cy} L ${cx} ${cy-R} A ${R} ${R} 0 ${f>0.5?1:0} 1 ${cx+R*Math.sin(a)} ${cy-R*Math.cos(a)} Z`;
+  }
+  const total = () => (phase === 'focus' ? S.focus : S.rest) * 60000;
+  const left = () => running ? Math.max(0, endAt - Date.now()) : remain;
+  function fmtClock(ms){ const s = Math.ceil(ms/1000); return pad(Math.floor(s/60)) + ':' + pad(s%60); }
+
+  function render(){
+    const ms = left(), f = ms / 3600000, a = f * 2 * Math.PI;
+    $('wedge').setAttribute('d', wedgePath(f));
+    $('wedge').setAttribute('fill', phase === 'focus' ? 'var(--focus)' : 'var(--rest)');
+    $('hand').setAttribute('x2', cx + (R-4)*Math.sin(a));
+    $('hand').setAttribute('y2', cy - (R-4)*Math.cos(a));
+    $('time').textContent = fmtClock(ms);
+  }
+  function renderStatic(){
+    $('summary').innerHTML = `집중 <b>${S.focus}분</b>, 쉬기 <b>${S.rest}분</b>`;
+    const p = $('phase');
+    p.classList.toggle('rest', phase === 'rest');
+    p.querySelector('span').textContent = phase === 'focus' ? '집중 시간' : '쉬는 시간';
+    $('toggle').classList.toggle('rest', phase === 'rest');
+    $('iconPlay').style.display = running ? 'none' : '';
+    $('iconPause').style.display = running ? '' : 'none';
+    $('toggle').setAttribute('aria-label', running ? '잠깐 멈추기' : '시작');
+    $('tally').innerHTML = '<span></span>'.repeat(Math.min(todayN(), 16));
+    lastSec = -1; render();
+  }
+  function loop(){ render(); if (running && left() <= 0) return finish(); if (running) raf = requestAnimationFrame(loop); }
+  function stopRun(){ running = false; cancelAnimationFrame(raf); clearTimeout(finishTimer); unlockScreen(); }
+  function logSegment(){ if (running && phase === 'focus') addFocus(Math.min(Date.now(), endAt) - segStart, false); }
+
+  function start(){
+    audio();
+    running = true; endAt = Date.now() + remain; segStart = Date.now();
+    clearTimeout(finishTimer);
+    finishTimer = setTimeout(() => { if (running && left() <= 0) finish(); }, remain + 50);
+    lockScreen(); $('hint').textContent = '';
+    renderStatic(); loop();
+  }
+  function pause(){ logSegment(); remain = left(); stopRun(); renderStatic(); }
+  function switchPhase(){ phase = phase === 'focus' ? 'rest' : 'focus'; remain = total(); }
+  function finish(){
+    const wasFocus = phase === 'focus';
+    if (wasFocus) addFocus(endAt - segStart, true);
+    stopRun(); switchPhase();
+    playSound(S.sound);
+    try { navigator.vibrate && navigator.vibrate([300,150,300,150,500]); } catch(e){}
+    $('hint').textContent = wasFocus ? '잘했어요! 이제 쉬어요. 시작을 눌러요.' : '다시 집중해 볼까요? 시작을 눌러요.';
+    renderStatic();
+  }
+  function reset(){ logSegment(); stopRun(); remain = total(); $('hint').textContent = ''; renderStatic(); }
+  function skip(){ logSegment(); stopRun(); switchPhase(); $('hint').textContent = ''; renderStatic(); }
+
+  async function lockScreen(){ try { if ('wakeLock' in navigator && !wakeLock) { wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release', () => wakeLock = null); } } catch(e){} }
+  function unlockScreen(){ try { wakeLock && wakeLock.release(); } catch(e){} wakeLock = null; }
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && running) { lockScreen(); if (left() <= 0) finish(); else loop(); }
+  });
+
+  $('toggle').addEventListener('click', () => running ? pause() : start());
+  $('reset').addEventListener('click', reset);
+  $('skip').addEventListener('click', skip);
+
+  /* ---------- settings sheet ---------- */
+  function renderDraft(){
+    $('vFocus').textContent = draft.focus; $('vRest').textContent = draft.rest;
+    document.querySelectorAll('.step').forEach(b => {
+      const k = b.dataset.k, d = +b.dataset.d, [lo, hi] = LIMITS[k];
+      b.disabled = d < 0 ? draft[k] <= lo : draft[k] >= hi;
+    });
+    $('soundRows').innerHTML = Object.entries(SOUNDS).map(([k, v]) =>
+      `<div class="row sound${draft.sound===k?' sel':''}" data-sound="${k}" role="radio" aria-checked="${draft.sound===k}" tabindex="0">
+        <div class="label"><span class="radio"></span>${v.name}</div>
+        <button class="play" data-play="${k}" aria-label="${v.name} 들어보기"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l10.5-6.5z"/></svg></button>
+      </div>`).join('');
+  }
+  $('soundRows').addEventListener('click', e => {
+    const p = e.target.closest('[data-play]');
+    if (p) { draft.sound = p.dataset.play; renderDraft(); playSound(p.dataset.play); return; }
+    const r = e.target.closest('[data-sound]');
+    if (r) { draft.sound = r.dataset.sound; renderDraft(); }
+  });
+  document.querySelectorAll('.step').forEach(b => b.addEventListener('click', () => {
+    const k = b.dataset.k, [lo, hi] = LIMITS[k];
+    draft[k] = Math.min(hi, Math.max(lo, draft[k] + (+b.dataset.d))); renderDraft();
+  }));
+  function openSettings(){ if (running) pause(); draft = { ...S }; renderDraft(); $('settings').classList.add('open'); }
+  $('openSettings').addEventListener('click', openSettings);
+  $('confirm').addEventListener('click', () => {
+    const timeChanged = draft.focus !== S.focus || draft.rest !== S.rest;
+    S = { ...draft }; store.set('pomo-settings-v2', S);
+    if (timeChanged) { phase = 'focus'; remain = total(); $('hint').textContent = ''; }
+    $('settings').classList.remove('open'); renderStatic();
+  });
+
+  /* ---------- stats sheet ---------- */
+  let tab = 'day';
+  const fmtMin = m => m < 60 ? `${m}분` : `${Math.floor(m/60)}시간${m%60 ? ' ' + (m%60) + '분' : ''}`;
+  function barsSVG(items, fmt){
+    const W = 340, H = 190, top = 22, bottom = 26, gap = 6;
+    const max = Math.max(1, ...items.map(i => i.v));
+    const bw = (W - gap*(items.length-1)) / items.length;
+    let s = `<svg viewBox="0 0 ${W} ${H}" role="img">`;
+    items.forEach((it, i) => {
+      const x = i*(bw+gap), h = it.v ? Math.max(3, (H-top-bottom) * it.v / max) : 2, y = H - bottom - h;
+      s += `<rect x="${x}" y="${y}" width="${bw}" height="${h}" rx="${Math.min(4,bw/3)}" fill="${it.v ? 'var(--focus)' : 'var(--bar-dim)'}" opacity="${it.cur ? 1 : (it.v ? .72 : 1)}"/>`;
+      if (it.v) s += `<text x="${x+bw/2}" y="${y-6}" text-anchor="middle" font-size="10" fill="var(--muted)" font-family="Archivo,sans-serif">${fmt(it.v)}</text>`;
+      s += `<text x="${x+bw/2}" y="${H-8}" text-anchor="middle" font-size="11" fill="${it.cur ? 'var(--ink)' : 'var(--muted)'}" font-weight="${it.cur?600:400}" font-family="Archivo,'Noto Sans KR',sans-serif">${it.label}</text>`;
+    });
+    return s + '</svg>';
+  }
+  function renderStats(){
+    document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
+    const now = new Date();
+    if (tab === 'day') {
+      const t = LOG[dayKey(now)] || { ms:0, n:0 };
+      $('statBig').textContent = fmtMin(Math.round(t.ms/60000));
+      $('statSub').textContent = `오늘 집중한 시간이에요. 뽀모도로 ${t.n}번 완료.`;
+      const items = [];
+      for (let i = 13; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+        const e = LOG[dayKey(d)];
+        items.push({ v: e ? Math.round(e.ms/60000) : 0, label: d.getDate(), cur: i === 0 });
+      }
+      $('chart').innerHTML = barsSVG(items, v => v);
+      $('chartNote').textContent = '최근 14일, 막대 위 숫자는 분이에요.';
+    } else {
+      const ym = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}`;
+      const sums = {};
+      Object.entries(LOG).forEach(([k, e]) => { const m = k.slice(0,7); sums[m] = sums[m] || { ms:0, n:0 }; sums[m].ms += e.ms; sums[m].n += e.n; });
+      const cur = sums[ym(now)] || { ms:0, n:0 };
+      $('statBig').textContent = fmtMin(Math.round(cur.ms/60000));
+      $('statSub').textContent = `이번 달 집중한 시간이에요. 뽀모도로 ${cur.n}번 완료.`;
+      const items = [];
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1), e = sums[ym(d)];
+        items.push({ v: e ? Math.round(e.ms/60000) : 0, label: `${d.getMonth()+1}월`, cur: i === 0 });
+      }
+      $('chart').innerHTML = barsSVG(items, v => (v/60).toFixed(v < 600 ? 1 : 0));
+      $('chartNote').textContent = '최근 6개월, 막대 위 숫자는 시간이에요.';
+    }
+  }
+  $('openStats').addEventListener('click', () => { renderStats(); $('stats').classList.add('open'); });
+  $('closeStats').addEventListener('click', () => $('stats').classList.remove('open'));
+  document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => { tab = b.dataset.tab; renderStats(); }));
+
+  /* ---------- pager ---------- */
+  const pager = $('pager'), navBtns = document.querySelectorAll('.nav button');
+  function setPage(i){
+    navBtns.forEach((b, j) => b.classList.toggle('on', j === i));
+    document.documentElement.classList.toggle('on-pomo', i === 1);
+    document.body.classList.toggle('on-pomo', i === 1);
+    const cs = getComputedStyle(document.documentElement);
+    $('themeColor').setAttribute('content', (i === 1 ? cs.getPropertyValue('--bg') : cs.getPropertyValue('--sky')).trim());
+    document.title = i === 1 ? '집중 타이머' : '하늘 시계';
+  }
+  let curPage = 0;
+  pager.addEventListener('scroll', () => {
+    const i = Math.round(pager.scrollLeft / pager.clientWidth);
+    if (i !== curPage) { curPage = i; setPage(i); }
+  }, { passive:true });
+  navBtns.forEach(b => b.addEventListener('click', () => pager.scrollTo({ left: +b.dataset.p * pager.clientWidth, behavior:'smooth' })));
+  window.addEventListener('resize', () => pager.scrollLeft = curPage * pager.clientWidth);
+
+  /* ---------- fullscreen ---------- */
+  const fsOK = document.fullscreenEnabled && document.documentElement.requestFullscreen;
+  document.querySelectorAll('.fs-btn').forEach(b => {
+    if (!fsOK || window.matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches) { b.hidden = true; return; }
+    b.addEventListener('click', () => {
+      if (document.fullscreenElement) document.exitFullscreen().catch(()=>{});
+      else document.documentElement.requestFullscreen({ navigationUI:'hide' }).catch(()=>{});
+    });
+  });
+
+  setPage(0); tickClock(); renderStatic();
+  if (firstRun) openSettings();
+})();
+</script>
+<script>if("serviceWorker" in navigator){navigator.serviceWorker.register("sw.js").catch(()=>{});}</script>
+</body>
+</html>
